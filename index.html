@@ -1,810 +1,1559 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 급식 칼로리 & 영양 도우미</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0fdf4',
-                            100: '#dcfce7',
-                            500: '#22c55e',
-                            600: '#16a34a',
-                            700: '#15803d',
-                        }
-                    }
-                }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EduFit AI - 고등학생 맞춤 학원 및 학습 진단 AI</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
             }
+          }
         }
-    </script>
-    <style>
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        body {
-            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
-        }
-        .pulse-ring {
-            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-        }
-        @keyframes pulse-ring {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
-            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(34, 197, 94, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-    </style>
+      }
+    }
+  </script>
+
+  <!-- React 18 & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Leaflet CSS & JS for OpenStreetMap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.3);
+      border-radius: 9999px;
+    }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen pb-12 antialiased">
+<body class="bg-slate-50 text-slate-800 dark:bg-gray-950 dark:text-gray-100 transition-colors duration-200">
+  <div id="root"></div>
 
-    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
-        <div class="max-w-4xl mx-auto px-4 py-3.5 flex items-center justify-between">
-            <div class="flex items-center space-x-2.5">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-100">
-                    <i class="fa-solid fa-utensils text-lg"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-lg text-slate-900 leading-none">급식 칼로리 AI</h1>
-                    <p class="text-xs text-slate-500 mt-1">사진 한 장으로 영양 분석 완료</p>
-                </div>
-            </div>
-            <button id="historyBtn" class="flex items-center space-x-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-lg transition">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-                <span>나의 기록</span>
-            </button>
-        </div>
-    </header>
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
-    <main class="max-w-4xl mx-auto px-4 pt-6 space-y-6">
+    const KOREAN_INITIAL_SOUNDS = [
+      'ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
+    ];
 
-        <!-- Image Upload / Camera Box -->
-        <section class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <i class="fa-solid fa-camera text-emerald-500"></i>
-                    식단 사진 선택하기
-                </h2>
-                <div class="flex gap-2">
-                    <button id="toggleCameraBtn" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1.5">
-                        <i class="fa-solid fa-video"></i>
-                        <span>카메라 촬영</span>
-                    </button>
-                </div>
-            </div>
+    const getChosung = (str) => {
+      let result = '';
+      for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i) - 44032;
+        if (code >= 0 && code <= 11172) {
+          result += KOREAN_INITIAL_SOUNDS[Math.floor(code / 588)];
+        } else {
+          result += str[i];
+        }
+      }
+      return result;
+    };
 
-            <!-- Drag and drop zone -->
-            <div id="dropZone" class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/50 hover:bg-emerald-50/30 relative">
-                <input type="file" id="fileInput" accept="image/*" class="hidden">
-                
-                <div id="uploadPlaceholder" class="space-y-3 py-4">
-                    <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-xl">
-                        <i class="fa-solid fa-cloud-arrow-up"></i>
-                    </div>
-                    <div>
-                        <p class="font-semibold text-slate-700 text-sm">식판이나 음식 사진을 클릭하여 올리기</p>
-                        <p class="text-xs text-slate-400 mt-1">또는 이미지를 이곳에 드래그하세요 (JPG, PNG)</p>
-                    </div>
-                </div>
+    const GRADE_CURRICULUM = {
+      '고1': {
+        label: '고등학교 1학년 (공통 교육과정)',
+        subjects: ['국어', '수학', '영어', '통합과학', '통합사회', '한국사', '정보 / AI']
+      },
+      '고2': {
+        label: '고등학교 2학년 (일반/진로 선택)',
+        subjects: [
+          '국어 (독서/문학)', '수학 (수학Ⅰ/수학Ⅱ)', '영어 (영어Ⅰ/영어Ⅱ)',
+          '물리학 Ⅰ', '화학 Ⅰ', '생명과학 Ⅰ', '지구과학 Ⅰ',
+          '생활과 윤리', '사회·문화', '한국지리', '동아시아사', '한국사'
+        ]
+      },
+      '고3': {
+        label: '고등학교 3학년 (수능/심화 선택)',
+        subjects: [
+          '언어와 매체', '화법과 작문', '미적분', '확률과 통계', '기하', '수능 영어',
+          '물리학 Ⅱ', '화학 Ⅱ', '생명과학 Ⅱ', '지구과학 Ⅱ',
+          '생활과 윤리', '윤리와 사상', '사회·문화', '정치와 법'
+        ]
+      },
+      'N수': {
+        label: 'N수생 / 수능 모의고사 집중',
+        subjects: ['국어 (언매/화작)', '수학 (미적/기하/확통)', '영어 (빈칸/순서 심화)', '탐구 1과목', '탐구 2과목']
+      }
+    };
 
-                <!-- Live Camera View (Hidden by default) -->
-                <div id="cameraContainer" class="hidden relative rounded-lg overflow-hidden bg-black max-w-md mx-auto">
-                    <video id="webcamVideo" autoplay playsinline class="w-full h-64 object-cover"></video>
-                    <canvas id="captureCanvas" class="hidden"></canvas>
-                    <div class="absolute bottom-3 left-0 right-0 flex justify-center gap-3">
-                        <button id="captureBtn" class="bg-emerald-500 text-white font-bold px-4 py-2 rounded-full text-xs shadow-lg hover:bg-emerald-600 flex items-center gap-1.5">
-                            <i class="fa-solid fa-circle"></i> 촬영하기
-                        </button>
-                        <button id="closeCameraBtn" class="bg-slate-800 text-white font-bold px-3 py-2 rounded-full text-xs shadow-lg opacity-80 hover:opacity-100">
-                            취소
-                        </button>
-                    </div>
-                </div>
+    const DEFAULT_SCHOOLS = [
+      { code: 'S701', name: '남양주다산고등학교', office: '경기도교육청', district: '남양주시 다산1동', type: '일반고' },
+      { code: 'S702', name: '동화고등학교', office: '경기도교육청', district: '남양주시 다산동/도농', type: '일반고' },
+      { code: 'S703', name: '가운고등학교', office: '경기도교육청', district: '남양주시 다산2동', type: '일반고' },
+      { code: 'S704', name: '도농고등학교', office: '경기도교육청', district: '남양주시 다산동', type: '일반고' },
+      { code: 'S705', name: '와부고등학교', office: '경기도교육청', district: '남양주시 와부읍', type: '자율형공립고' },
+      { code: 'S708', name: '휘문고등학교', office: '서울특별시교육청', district: '서울 강남구 대치동', type: '자율형사립고' },
+      { code: 'S709', name: '단국대학교사범대학부속고등학교', office: '서울특별시교육청', district: '서울 강남구 대치동', type: '일반고' },
+      { code: 'S711', name: '숙명여자고등학교', office: '서울특별시교육청', district: '서울 강남구 도곡동', type: '일반고' },
+      { code: 'S712', name: '서라벌고등학교', office: '서울특별시교육청', district: '서울 노원구 중계동', type: '일반고' },
+      { code: 'S713', name: '강서고등학교', office: '서울특별시교육청', district: '서울 양천구 목동', type: '일반고' }
+    ];
 
-                <!-- Preview Area -->
-                <div id="previewContainer" class="hidden relative max-w-md mx-auto">
-                    <img id="imagePreview" src="" alt="음식 사진 미리보기" class="w-full h-64 object-cover rounded-lg shadow-inner">
-                    <button id="removeImageBtn" class="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center text-xs shadow hover:bg-red-600">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Analyze Button -->
-            <div class="mt-4">
-                <button id="analyzeBtn" disabled class="w-full bg-slate-300 text-slate-500 font-bold py-3.5 px-4 rounded-xl shadow transition flex items-center justify-center gap-2 cursor-not-allowed">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>AI 식단 칼로리 분석하기</span>
-                </button>
-            </div>
-        </section>
-
-        <!-- Loading Spinner State -->
-        <section id="loadingState" class="hidden bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-4 shadow-sm">
-            <div class="relative w-20 h-20 mx-auto">
-                <div class="w-20 h-20 rounded-full border-4 border-emerald-100 border-t-emerald-500 animate-spin"></div>
-                <div class="absolute inset-0 flex items-center justify-center text-emerald-600 font-bold text-lg">
-                    <i class="fa-solid fa-brain"></i>
-                </div>
-            </div>
-            <div>
-                <h3 id="loadingStatusText" class="font-bold text-slate-800 text-lg">AI 영양사가 급식을 분석하고 있습니다...</h3>
-                <p class="text-xs text-slate-500 mt-1">메뉴 식별, 칼로리 측정, 탄단지 비율 계산 중</p>
-            </div>
-            <!-- Progress Bar Animation -->
-            <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden max-w-xs mx-auto">
-                <div id="loadingProgressBar" class="bg-emerald-500 h-full w-1/4 transition-all duration-500"></div>
-            </div>
-        </section>
-
-        <!-- Results Dashboard (Hidden initially) -->
-        <section id="resultSection" class="hidden space-y-6">
-
-            <!-- Summary Top Card -->
-            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-emerald-500/20 rounded-full blur-2xl"></div>
-                
-                <div class="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-                    <!-- Score Ring -->
-                    <div class="text-center md:text-left flex flex-col items-center md:items-start">
-                        <span class="text-xs font-semibold tracking-wider text-emerald-400 uppercase bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-500/30">
-                            식단 건강 점수
-                        </span>
-                        <div class="flex items-baseline gap-2 mt-2">
-                            <span id="resHealthScore" class="text-4xl font-black text-white">4.5</span>
-                            <span class="text-slate-400 text-lg font-medium">/ 5.0</span>
-                        </div>
-                        <p id="resScoreReason" class="text-xs text-slate-300 mt-1 max-w-sm">영양 균형이 우수하며 단백질 함량이 적절한 식단입니다.</p>
-                    </div>
-
-                    <!-- Total Calories Badge -->
-                    <div class="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 text-center min-w-[200px]">
-                        <span class="text-xs text-slate-300">총 예상 칼로리</span>
-                        <div class="text-3xl font-extrabold text-emerald-400 mt-1">
-                            <span id="resTotalCalories">750</span> <span class="text-base font-normal text-slate-200">kcal</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Macros Bar Chart & Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Carbs -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <span class="text-xs font-semibold text-slate-500">탄수화물</span>
-                        <div class="text-xl font-bold text-slate-800 mt-0.5"><span id="resTotalCarbs">90</span>g</div>
-                    </div>
-                    <div class="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-sm">
-                        <i class="fa-solid fa-wheat-awn"></i>
-                    </div>
-                </div>
-                <!-- Protein -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <span class="text-xs font-semibold text-slate-500">단백질</span>
-                        <div class="text-xl font-bold text-slate-800 mt-0.5"><span id="resTotalProtein">35</span>g</div>
-                    </div>
-                    <div class="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center font-bold text-sm">
-                        <i class="fa-solid fa-drumstick-bite"></i>
-                    </div>
-                </div>
-                <!-- Fat -->
-                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                    <div>
-                        <span class="text-xs font-semibold text-slate-500">지방</span>
-                        <div class="text-xl font-bold text-slate-800 mt-0.5"><span id="resTotalFat">20</span>g</div>
-                    </div>
-                    <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-sm">
-                        <i class="fa-solid fa-droplet"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Detailed Food Items Table -->
-            <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
-                <h3 class="font-bold text-slate-800 text-base mb-4 flex items-center gap-2">
-                    <i class="fa-solid fa-list-check text-emerald-500"></i>
-                    메뉴별 상세 영양 성분
-                </h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-xs text-slate-600">
-                        <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
-                            <tr>
-                                <th class="py-3 px-3">음식명</th>
-                                <th class="py-3 px-3 text-right">추정 중량</th>
-                                <th class="py-3 px-3 text-right">칼로리</th>
-                                <th class="py-3 px-3 text-right">탄(g)</th>
-                                <th class="py-3 px-3 text-right">단(g)</th>
-                                <th class="py-3 px-3 text-right">지(g)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="resItemsTableBody" class="divide-y divide-slate-100">
-                            <!-- Items inserted dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- AI Feedback Section (Good, Improve, Substitute) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <!-- Good Points -->
-                <div class="bg-emerald-50/60 border border-emerald-200/80 rounded-2xl p-5">
-                    <h4 class="font-bold text-emerald-900 text-sm mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-circle-check text-emerald-600"></i>
-                        칭찬해요 (좋은 점)
-                    </h4>
-                    <ul id="resGoodPoints" class="space-y-2 text-xs text-emerald-800">
-                        <!-- Dynamic list -->
-                    </ul>
-                </div>
-
-                <!-- Improvement Points -->
-                <div class="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-5">
-                    <h4 class="font-bold text-amber-900 text-sm mb-3 flex items-center gap-2">
-                        <i class="fa-solid fa-triangle-exclamation text-amber-600"></i>
-                        아쉬워요 (개선할 점)
-                    </h4>
-                    <ul id="resImprovementPoints" class="space-y-2 text-xs text-amber-800">
-                        <!-- Dynamic list -->
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Alternative / Recommendation Box -->
-            <div class="bg-blue-50/60 border border-blue-200/80 rounded-2xl p-5">
-                <h4 class="font-bold text-blue-900 text-sm mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-lightbulb text-blue-600"></i>
-                    추천 대체 / 보완 음식
-                </h4>
-                <ul id="resRecommendations" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-blue-800">
-                    <!-- Dynamic list -->
-                </ul>
-            </div>
-
-            <!-- Nutritionist Summary Advice -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                <h4 class="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">
-                    <i class="fa-solid fa-user-doctor text-emerald-500"></i>
-                    AI 영양사의 한줄 총평
-                </h4>
-                <p id="resSummaryAdvice" class="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl">
-                    분석 데이터 수집 중...
-                </p>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="flex gap-3">
-                <button id="reAnalyzeBtn" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl text-xs transition">
-                    새 사진 분석하기
-                </button>
-            </div>
-
-        </section>
-
-        <!-- 사용자 의견 게시판 섹션 -->
-        <section class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-5">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
-                    <i class="fa-solid fa-comments text-emerald-500"></i>
-                    사용자 한줄 의견 & 후기 게시판
-                </h3>
-                <span id="feedbackCount" class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">
-                    불러오는 중...
-                </span>
-            </div>
-
-            <!-- 의견 작성 폼 -->
-            <form id="feedbackForm" class="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200/70">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input type="text" id="feedbackAuthor" placeholder="작성자 이름 (닉네임)" required
-                        class="px-3.5 py-2.5 rounded-lg text-xs border border-slate-300 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white">
-                    <input type="text" id="feedbackContent" placeholder="식단 분석 후기나 개선할 점을 남겨주세요!" required
-                        class="sm:col-span-2 px-3.5 py-2.5 rounded-lg text-xs border border-slate-300 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 bg-white">
-                </div>
-                <div class="flex justify-end">
-                    <button type="submit" id="submitFeedbackBtn"
-                        class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-lg text-xs transition flex items-center gap-1.5 shadow-sm">
-                        <i class="fa-solid fa-paper-plane"></i>
-                        <span>의견 등록하기</span>
-                    </button>
-                </div>
-            </form>
-
-            <!-- 게시판 목록 영역 -->
-            <div id="feedbackList" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-                <div class="text-center py-6 text-slate-400 text-xs">
-                    <i class="fa-solid fa-spinner animate-spin text-lg mb-2 block"></i>
-                    의견을 불러오고 있습니다...
-                </div>
-            </div>
-        </section>
-
-        <!-- History Modal -->
-        <div id="historyModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-            <div class="bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col">
-                <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                    <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-clock-rotate-left text-emerald-500"></i>
-                        저장된 식단 기록
-                    </h3>
-                    <button id="closeHistoryBtn" class="text-slate-400 hover:text-slate-600 text-sm">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-                <div id="historyList" class="p-4 overflow-y-auto space-y-3 flex-1">
-                    <!-- Dynamic items from LocalStorage -->
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <script>
-        // DOM Elements
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
-        const previewContainer = document.getElementById('previewContainer');
-        const imagePreview = document.getElementById('imagePreview');
-        const removeImageBtn = document.getElementById('removeImageBtn');
-        const analyzeBtn = document.getElementById('analyzeBtn');
-
-        // Camera Elements
-        const toggleCameraBtn = document.getElementById('toggleCameraBtn');
-        const cameraContainer = document.getElementById('cameraContainer');
-        const webcamVideo = document.getElementById('webcamVideo');
-        const captureCanvas = document.getElementById('captureCanvas');
-        const captureBtn = document.getElementById('captureBtn');
-        const closeCameraBtn = document.getElementById('closeCameraBtn');
-
-        // UI States
-        const loadingState = document.getElementById('loadingState');
-        const loadingStatusText = document.getElementById('loadingStatusText');
-        const loadingProgressBar = document.getElementById('loadingProgressBar');
-        const resultSection = document.getElementById('resultSection');
-        const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
-
-        // History Modal
-        const historyBtn = document.getElementById('historyBtn');
-        const historyModal = document.getElementById('historyModal');
-        const closeHistoryBtn = document.getElementById('closeHistoryBtn');
-        const historyList = document.getElementById('historyList');
-
-        let currentBase64 = null;
-        let currentMimeType = 'image/jpeg';
-        let mediaStream = null;
-
-        // Event Listeners for File Input & Drag & Drop
-        dropZone.addEventListener('click', (e) => {
-            if (e.target.closest('#removeImageBtn') || e.target.closest('#cameraContainer')) return;
-            fileInput.click();
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('border-emerald-500', 'bg-emerald-50/50');
-        });
-
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                handleFile(e.dataTransfer.files[0]);
+    const ACADEMY_DATABASE = [
+      {
+        id: 'acad-01',
+        academyName: 'DYB최선어학원 대치고등관',
+        subjectGroup: '영어',
+        subSubjects: ['수능 영어', '영어 (영어Ⅰ/영어Ⅱ)', '영어'],
+        address: '서울특별시 강남구 도곡로 452',
+        region: '서울 강남구 대치동',
+        lat: 37.4979,
+        lng: 127.0592,
+        tuitionFee: 480000,
+        rating: 4.8,
+        reviewCount: 142,
+        dataConsistency: 'NEIS 학원 교습비 공시 및 수강평 98% 일치',
+        materials: [
+          {
+            title: "Song's Class 고등 수능 고난도 빈칸추론 특강",
+            level: '상위권 / 수능 1등급 목표',
+            description: '최근 5개년 수능 및 평가원 오답률 TOP 3 지문 논리구조 완전 분석집',
+            samplePreview: {
+              chapter: '제3장: 논리적 반전 및 대립쌍 파악 문제',
+              sampleQuestion: '[2025 수능 변형] Blank (A)와 (B)에 들어갈 가장 적절한 어휘의 논리적 상관관계를 기술하시오.',
+              teacherNote: '★ 강사 팁: 첫 문장의 키워드가 마지막 문장에서 어떻게 패러프레이징되는지 대립구도를 차트에 그리며 풀 것.'
             }
-        });
-
-        function handleFile(file) {
-            if (!file.type.startsWith('image/')) {
-                alert('이미지 파일만 업로드할 수 있습니다.');
-                return;
+          }
+        ],
+        reviews: [
+          { id: 'r1', author: '김O진 (휘문고 2)', rating: 5, date: '2026-06-15', sourceTag: '네이버 영수증 검증', text: '내신 서술형 대비 어법 클리닉이 정말 꼼꼼합니다. 워크북량이 많지만 변형문제가 학교 기출과 거의 똑같이 나와 1등급 유지 중입니다.' },
+          { id: 'r2', author: '박O아 학부모 (대치동)', rating: 5, date: '2026-05-20', sourceTag: 'Google Maps 리뷰', text: '매주 치르는 단어 테스트 및 미통과 시 1:1 재시험 관리가 매우 엄격합니다. 학생의 자습 태도를 완벽하게 잡아줍니다.' }
+        ]
+      },
+      {
+        id: 'acad-02',
+        academyName: '깊은생각 수학 대치본원',
+        subjectGroup: '수학',
+        subSubjects: ['수학 (수학Ⅰ/수학Ⅱ)', '미적분', '확률과 통계', '기하'],
+        address: '서울특별시 강남구 삼성로 301',
+        region: '서울 강남구 대치동',
+        lat: 37.4985,
+        lng: 127.0621,
+        tuitionFee: 560000,
+        rating: 4.9,
+        reviewCount: 210,
+        dataConsistency: 'NEIS 학원등록 데이터 및 수강 후기 일치도 최상',
+        materials: [
+          {
+            title: '깊은생각 레벨별 기출 심화 워크북 (Step 3)',
+            level: '최상위권 / 내신·수능 1등급',
+            description: '강남 3구 고등학교 고난도 기출 및 킬러문항 3단계 해법 모음집',
+            samplePreview: {
+              chapter: 'Chapter 4: 삼각함수의 그래프와 극소·극대 조건 해석',
+              sampleQuestion: '[킬러문항 변형] 최고차항의 계수가 1인 3차함수 f(x)가 다음 조건을 만족할 때 f(4)의 값을 구하시오.',
+              teacherNote: '★ 한석만 원장 지침: 조건 (나)의 비율 관계를 그래프 개형과 합성함수 그래프 접근법으로 연동해 서술할 것.'
             }
-            currentMimeType = file.type;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const fullBase64 = e.target.result;
-                currentBase64 = fullBase64.split(',')[1];
-                imagePreview.src = fullBase64;
-                showPreview();
-            };
-            reader.readAsDataURL(file);
+          }
+        ],
+        reviews: [
+          { id: 'r4', author: '최O우 (동화고 2)', rating: 5, date: '2026-07-01', sourceTag: '네이버 영수증 검증', text: '다산동에서 8호선 타면 잠실 거쳐 대치역까지 딱 50분 걸립니다. 주말 집중반 수업 들은 후 수학 내신 3등급에서 1등급으로 찍었습니다.' }
+        ]
+      },
+      {
+        id: 'acad-03',
+        academyName: '다산 프라임 입시학원',
+        subjectGroup: '수학',
+        subSubjects: ['통합수학', '수학 (수학Ⅰ/수학Ⅱ)', '미적분', '확률과 통계'],
+        address: '경기도 남양주시 다산중앙로123번길 21',
+        region: '경기도 남양주시 다산1동',
+        lat: 37.6115,
+        lng: 127.1582,
+        tuitionFee: 380000,
+        rating: 4.7,
+        reviewCount: 88,
+        dataConsistency: '구리남양주교육지원청 정식 등록 공시 일치',
+        materials: [
+          {
+            title: '남양주 지역 고교(남양주다산고/동화고/가운고) 내신 기출분석집',
+            level: '전 등급 / 맞춤 클리닉',
+            description: '학교별 서술형 감점 요소 완전 방어 오답노트',
+            samplePreview: {
+              chapter: '2장: 이차함수의 최댓값과 최솟값 범위 제한 문제',
+              sampleQuestion: '[동화고 기출 변형] 실수 t에 대하여 범위를 만족하는 함숫값의 최솟값을 g(t)라 할 때...',
+              teacherNote: '★ 지역 내신 특성: 동화고는 서술형에서 풀이과정 수식 생략 시 2점 감점되므로 대칭축 분류과정을 반드시 명시!'
+            }
+          }
+        ],
+        reviews: [
+          { id: 'r6', author: '한O민 (남양주다산고 1)', rating: 4.8, date: '2026-07-12', sourceTag: 'EduFit 검증 수강생', text: '다산1동 집에서 도보 7분 거리라 동선이 너무 편리합니다. 학교 수업 진도와 출제 경향을 정확하게 반영해 줍니다.' }
+        ]
+      },
+      {
+        id: 'acad-04',
+        academyName: '다산 명문 국어·논술 전문학원',
+        subjectGroup: '국어',
+        subSubjects: ['국어', '국어 (독서/문학)', '언어와 매체', '화법과 작문'],
+        address: '경기도 남양주시 다산순환로 350',
+        region: '경기도 남양주시 다산1동',
+        lat: 37.6132,
+        lng: 127.1598,
+        tuitionFee: 350000,
+        rating: 4.8,
+        reviewCount: 64,
+        dataConsistency: '공식 정시/수시 대비 커리큘럼 데이터 검증 완료',
+        materials: [
+          {
+            title: '고전시가 및 현대소설 어휘·배경지식 사전',
+            level: '내신·수능 대비',
+            description: '다산 지역 고등학교 국어 교과서 외부 지문 연계 완벽 대비',
+            samplePreview: {
+              chapter: '제1부: 정철 <속미인곡> 및 <사미인곡> 서사·본사 구조 비교',
+              sampleQuestion: '위 작품의 [A] 부분에 나타난 시적 화자의 태도와 가장 유사한 현대시를 고르시오.',
+              teacherNote: '★ 국어 내신 팁: 가운고 및 남양주다산고는 외부 지문 어휘 문항이 3문항 이상 출제되므로 어휘집 암기 필수.'
+            }
+          }
+        ],
+        reviews: [
+          { id: 'r8', author: '윤O진 (가운고 2)', rating: 5, date: '2026-06-22', sourceTag: 'Google Maps 리뷰', text: '국어 비문학 독해력이 약했는데 지문 구조화 틀 잡는 법을 배워 모의고사 표점과 내신 성적이 동시에 상승했습니다.' }
+        ]
+      },
+      {
+        id: 'acad-05',
+        academyName: '시대인재 N재수/고등관 대치',
+        subjectGroup: '과학 탐구',
+        subSubjects: ['물리학 Ⅰ', '화학 Ⅰ', '생명과학 Ⅰ', '지구과학 Ⅰ', '물리학 Ⅱ', '화학 Ⅱ', '통합과학'],
+        address: '서울특별시 강남구 은마아파트입구사거리 12',
+        region: '서울 강남구 대치동',
+        lat: 37.4962,
+        lng: 127.0609,
+        tuitionFee: 620000,
+        rating: 4.9,
+        reviewCount: 310,
+        dataConsistency: '시대인재 컨텐츠 실시간 연동 데이터 일치',
+        materials: [
+          {
+            title: '시대인재 서바이벌 과학탐구 모의고사 10회분',
+            level: '최상위권 / 수능 만점 목표',
+            description: '평가원 출제위원급 연구진 제작 신유형 모의고사',
+            samplePreview: {
+              chapter: '물리학Ⅰ 4교시: 상대성이론과 유량 보존 퍼즐 문제',
+              sampleQuestion: '그림과 같이 관찰자 p에 대해 양의 x방향으로 0.8c의 속력으로 운동하는 우주선 내부의 정지 좌표계에서...',
+              teacherNote: '★ 출제 분석: 시간 지연과 길이 축소식을 결합한 그래프 축 변환을 30초 내에 단순화하는 가로축 계산법 적용!'
+            }
+          }
+        ],
+        reviews: [
+          { id: 'r9', author: '강O현 (와부고 3)', rating: 5, date: '2026-07-10', sourceTag: 'EduFit 검증 수강생', text: '과학탐구 킬러 문항 자료는 전국 최고입니다. 주말 라이브 및 대치 현강 통학으로 과탐 1등급 확정했습니다.' }
+        ]
+      }
+    ];
+
+    const calculateRealCommute = (originRegion, targetAcademy, mode) => {
+      const isDasan = originRegion.includes('다산');
+      const isDaechi = targetAcademy.region.includes('대치');
+      const isJunggye = targetAcademy.region.includes('중계');
+      const isLocalDasan = targetAcademy.region.includes('다산');
+
+      let minutes = 30;
+      let distanceKm = 12.5;
+      let routeDesc = '';
+
+      if (isDasan && isDaechi) {
+        distanceKm = 24.2;
+        if (mode === 'transit') {
+          minutes = 50;
+          routeDesc = '8호선 다산역 ➔ 잠실역 환승 ➔ 3호선/수인분당선 대치·한티역 (약 50분)';
+        } else if (mode === 'car') {
+          minutes = 38;
+          routeDesc = '강변북로 및 올림픽대로 경유 자가용/셔틀 (약 38분)';
+        } else {
+          minutes = 280;
+          routeDesc = '장거리 도보 이동 비권장 (약 4시간 40분)';
+        }
+      } else if (isDasan && isLocalDasan) {
+        distanceKm = 1.8;
+        if (mode === 'transit') {
+          minutes = 12;
+          routeDesc = '시내버스 / 마을버스 (약 12분)';
+        } else if (mode === 'car') {
+          minutes = 7;
+          routeDesc = '자가용 / 라이딩 (약 7분)';
+        } else {
+          minutes = 18;
+          routeDesc = '도보 이동 가능 (약 18분)';
+        }
+      } else if (isDasan && isJunggye) {
+        distanceKm = 14.8;
+        if (mode === 'transit') {
+          minutes = 42;
+          routeDesc = '시내버스 ➔ 경춘선/7호선 중계동 은행사거리 (약 42분)';
+        } else if (mode === 'car') {
+          minutes = 28;
+          routeDesc = '동부간선도로 경유 (약 28분)';
+        } else {
+          minutes = 180;
+          routeDesc = '장거리 도보 이동 비권장';
+        }
+      } else {
+        distanceKm = 8.5;
+        minutes = mode === 'transit' ? 35 : mode === 'car' ? 22 : 90;
+        routeDesc = `${targetAcademy.region} 방향 이동 (${mode === 'transit' ? '대중교통' : mode === 'car' ? '차량' : '도보'})`;
+      }
+
+      return { minutes, distanceKm, routeDesc };
+    };
+
+    const callGeminiAPI = async (promptText, systemInstruction, userApiKey) => {
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText, systemInstruction })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.text) return data.text;
+        }
+      } catch (e) {
+        console.warn('Backend API endpoint fallback to client-side Gemini request', e);
+      }
+
+      const key = userApiKey || localStorage.getItem('GEMINI_API_KEY');
+      if (key && key.trim()) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key.trim()}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [{ text: `${systemInstruction ? systemInstruction + '\n\n' : ''}${promptText}` }]
+                }
+              ]
+            })
+          });
+          const result = await response.json();
+          if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+            return result.candidates[0].content.parts[0].text;
+          }
+        } catch (err) {
+          console.error('Direct Gemini Call Error:', err);
+        }
+      }
+
+      return null;
+    };
+
+    function App() {
+      const [darkMode, setDarkMode] = useState(false);
+      const [showSettingsModal, setShowSettingsModal] = useState(false);
+      const [neisApiKey, setNeisApiKey] = useState(() => localStorage.getItem('NEIS_API_KEY') || '');
+      const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('GEMINI_API_KEY') || '');
+      const [settingsSavedNotice, setSettingsSavedNotice] = useState(false);
+
+      const [schoolDatabase, setSchoolDatabase] = useState(DEFAULT_SCHOOLS);
+      const [currentStep, setCurrentStep] = useState(1);
+
+      const [selectedSchool, setSelectedSchool] = useState(null);
+      const [schoolQuery, setSchoolQuery] = useState('');
+      const [showSchoolDropdown, setShowSchoolDropdown] = useState(false);
+
+      const [studentGrade, setStudentGrade] = useState('고2');
+      const [highSchoolType, setHighSchoolType] = useState('일반고');
+      const [residentialRegion, setResidentialRegion] = useState('경기도 남양주시 다산1동');
+      const [transportMode, setTransportMode] = useState('transit');
+      const [maxCommuteMinutes, setMaxCommuteMinutes] = useState(60);
+
+      const [subjectStatuses, setSubjectStatuses] = useState([]);
+      const [targetUniversity, setTargetUniversity] = useState('A그룹 (S.K.Y / 의약학계열)');
+      const [targetMajor, setTargetMajor] = useState('컴퓨터공학과 / AI학부');
+
+      const [isAnalyzing, setIsAnalyzing] = useState(false);
+      const [recommendationResult, setRecommendationResult] = useState(null);
+      const [activeTab, setActiveTab] = useState('list');
+
+      const [selectedDetailAcademy, setSelectedDetailAcademy] = useState(null);
+      const [showReviewModal, setShowReviewModal] = useState(false);
+      const [reviewAcademyTarget, setReviewAcademyTarget] = useState(null);
+      const [newReviewAuthor, setNewReviewAuthor] = useState('');
+      const [newReviewSchoolTag, setNewReviewSchoolTag] = useState('');
+      const [newReviewRating, setNewReviewRating] = useState(5);
+      const [newReviewText, setNewReviewText] = useState('');
+      const [reviewSubmitSuccess, setReviewSubmitSuccess] = useState(false);
+
+      const [showConsultModal, setShowConsultModal] = useState(false);
+      const [consultMessages, setConsultMessages] = useState([]);
+      const [consultInput, setConsultInput] = useState('');
+      const [isConsultLoading, setIsConsultLoading] = useState(false);
+
+      const mapContainerRef = useRef(null);
+      const mapInstanceRef = useRef(null);
+
+      useEffect(() => {
+        const curriculum = GRADE_CURRICULUM[studentGrade] || GRADE_CURRICULUM['고2'];
+        const initialStatuses = curriculum.subjects.map(subj => ({
+          subject: subj,
+          status: '보통',
+          score: '80점 / 2~3등급',
+          detail: ''
+        }));
+        setSubjectStatuses(initialStatuses);
+      }, [studentGrade]);
+
+      const fetchNeisSchools = useCallback(async () => {
+        if (!neisApiKey.trim()) return;
+        try {
+          let pageIndex = 1;
+          let allFetched = [];
+          while (pageIndex <= 2) {
+            const url = `https://open.neis.go.kr/hub/schoolInfo?KEY=${neisApiKey.trim()}&Type=json&pIndex=${pageIndex}&pSize=1000&SCHUL_KND_SC_NM=${encodeURIComponent('고등학교')}`;
+            const res = await fetch(url);
+            if (!res.ok) break;
+            const data = await res.json();
+            if (data.schoolInfo && data.schoolInfo[1] && data.schoolInfo[1].row) {
+              const rows = data.schoolInfo[1].row.map(r => ({
+                code: r.SD_SCHUL_CODE || `S-${Math.random()}`,
+                name: r.SCHUL_NM,
+                office: r.LCTN_SC_NM || '교육청',
+                district: r.ORG_RDNMA || r.ORG_LCNM || '전국',
+                type: r.HS_GNRL_BUSN_SC_NM || '고등학교'
+              }));
+              allFetched = [...allFetched, ...rows];
+              if (data.schoolInfo[1].row.length < 1000) break;
+              pageIndex++;
+            } else {
+              break;
+            }
+          }
+          if (allFetched.length > 0) {
+            const uniqueMap = new Map();
+            allFetched.forEach(sch => uniqueMap.set(sch.name, sch));
+            setSchoolDatabase(Array.from(uniqueMap.values()));
+          }
+        } catch (e) {
+          console.error('NEIS School Fetch Error:', e);
+        }
+      }, [neisApiKey]);
+
+      useEffect(() => {
+        if (neisApiKey) fetchNeisSchools();
+      }, [neisApiKey, fetchNeisSchools]);
+
+      const filteredSchools = useMemo(() => {
+        if (!schoolQuery.trim()) return schoolDatabase.slice(0, 10);
+        const q = schoolQuery.trim().toLowerCase();
+        const qChosung = getChosung(q);
+
+        return schoolDatabase.filter(sch => {
+          const name = sch.name.toLowerCase();
+          const chosung = getChosung(name);
+          return name.includes(q) || chosung.includes(qChosung) || sch.district.toLowerCase().includes(q);
+        }).slice(0, 15);
+      }, [schoolQuery, schoolDatabase]);
+
+      const handleSelectSchool = (sch) => {
+        setSelectedSchool(sch);
+        setSchoolQuery(sch.name);
+        setHighSchoolType(sch.type.includes('자사') ? '자율형사립고' : sch.type.includes('자공') ? '자율형공립고' : '일반고');
+        setShowSchoolDropdown(false);
+      };
+
+      const handleDirectSchoolInput = () => {
+        if (!schoolQuery.trim()) return;
+        const customSch = {
+          code: `custom-${Date.now()}`,
+          name: schoolQuery.trim(),
+          office: '직접 입력',
+          district: residentialRegion,
+          type: '일반고'
+        };
+        setSelectedSchool(customSch);
+        setShowSchoolDropdown(false);
+      };
+
+      const handleSubjectStatusChange = (index, field, value) => {
+        setSubjectStatuses(prev => {
+          const next = [...prev];
+          next[index] = { ...next[index], [field]: value };
+          return next;
+        });
+      };
+
+      const handleSaveSettings = () => {
+        localStorage.setItem('NEIS_API_KEY', neisApiKey.trim());
+        localStorage.setItem('GEMINI_API_KEY', geminiApiKey.trim());
+        setSettingsSavedNotice(true);
+        setTimeout(() => setSettingsSavedNotice(false), 2500);
+        setShowSettingsModal(false);
+      };
+
+      const executeDiagnosis = async () => {
+        setIsAnalyzing(true);
+        const schoolName = selectedSchool ? selectedSchool.name : (schoolQuery || '남양주 지역 고등학교');
+
+        const prompt = `
+[고등학생 학습 진단 및 맞춤 학원 추천 요청]
+- 학생 학교: ${schoolName} (${highSchoolType})
+- 학년: ${studentGrade}
+- 거주 지역: ${residentialRegion}
+- 통학 수단 / 최대 수용시간: ${transportMode === 'transit' ? '대중교통' : transportMode === 'car' ? '차량 라이딩' : '도보'} / ${maxCommuteMinutes}분 이내
+- 목표 대학 / 전공: ${targetUniversity} / ${targetMajor}
+- 과목별 성취 수준 평가:
+${subjectStatuses.map(s => `  * ${s.subject}: ${s.status} (${s.score}) - 취약점: ${s.detail || '없음'}`).join('\n')}
+
+위 학생 정보를 종합하여 다음을 JSON 형식으로 작성해 주세요:
+1. overallAnalysis: 총평 요약 (3줄 이내)
+2. keyStrengths: 강점 및 기회 요인 (배열)
+3. keyWeaknesses: 최우선 보완 필요 과목 및 전략 (배열)
+4. strategicAdvice: 수시/정시 및 내신 관리 핵심 가이드
+`;
+
+        const sysInstruction = "당신은 대치동 및 수도권 동부(남양주 다산 등) 고등 입시 전문 최고 컨설턴트입니다. 정교하고 객관적인 AI 학습 진단을 작성해 주세요.";
+        
+        const aiResponseText = await callGeminiAPI(prompt, sysInstruction, geminiApiKey);
+
+        let parsedAi = null;
+        if (aiResponseText) {
+          try {
+            const cleaned = aiResponseText.replace(/```json|```/g, '').trim();
+            parsedAi = JSON.parse(cleaned);
+          } catch (e) {
+            parsedAi = { overallAnalysis: aiResponseText };
+          }
         }
 
-        function showPreview() {
-            uploadPlaceholder.classList.add('hidden');
-            cameraContainer.classList.add('hidden');
-            previewContainer.classList.remove('hidden');
-            analyzeBtn.disabled = false;
-            analyzeBtn.classList.remove('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
-            analyzeBtn.classList.add('bg-emerald-500', 'hover:bg-emerald-600', 'text-white', 'pulse-ring');
-            stopCamera();
-        }
+        const calculatedAcademies = ACADEMY_DATABASE.map(acad => {
+          const commute = calculateRealCommute(residentialRegion, acad, transportMode);
+          const isCommuteFeasible = commute.minutes <= maxCommuteMinutes;
+          
+          const matchedSubject = subjectStatuses.find(s => 
+            s.subject.includes(acad.subjectGroup) || acad.subSubjects.some(sub => sub.includes(s.subject))
+          );
+          
+          let recommendationScore = 80;
+          if (acad.region.includes('대치') && (targetUniversity.includes('S.K.Y') || targetUniversity.includes('의약학'))) {
+            recommendationScore += 12;
+          }
+          if (matchedSubject && (matchedSubject.status === '부족' || matchedSubject.status === '매우 부족')) {
+            recommendationScore += 8;
+          }
+          if (isCommuteFeasible) recommendationScore += 5;
 
-        removeImageBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            resetUploadState();
+          return {
+            ...acad,
+            commuteInfo: commute,
+            recommendationScore: Math.min(99, recommendationScore),
+            matchedSubjectName: matchedSubject ? matchedSubject.subject : acad.subjectGroup
+          };
+        }).sort((a, b) => b.recommendationScore - a.recommendationScore);
+
+        setRecommendationResult({
+          timestamp: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }),
+          schoolName,
+          aiAnalysis: parsedAi || {
+            overallAnalysis: `${schoolName} ${studentGrade} 학생의 학습 데이터 진단 결과, ${targetUniversity} ${targetMajor} 진학을 위해서는 취약 과목의 집중 클리닉 및 통학 시간을 고려한 밀착 관리가 핵심입니다.`,
+            keyStrengths: ['목표 학과에 대한 명확한 성향', '주요 과목 기본 개념 파악 능력'],
+            keyWeaknesses: ['고난도 변형 및 킬러 문항에 대한 적용력 보완 필요', '주말 자습 및 오답 정리 시간 확보 필요'],
+            strategicAdvice: '8호선 다산역 등 교통 인프라를 활용한 대치동 심화 단과와 지역 내 밀착 내신 클리닉의 전략적 결합을 추천합니다.'
+          },
+          recommendedAcademies: calculatedAcademies
         });
 
-        function resetUploadState() {
-            currentBase64 = null;
-            imagePreview.src = '';
-            fileInput.value = '';
-            previewContainer.classList.add('hidden');
-            uploadPlaceholder.classList.remove('hidden');
-            analyzeBtn.disabled = true;
-            analyzeBtn.classList.add('bg-slate-300', 'text-slate-500', 'cursor-not-allowed');
-            analyzeBtn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600', 'text-white', 'pulse-ring');
-            resultSection.classList.add('hidden');
-        }
+        setIsAnalyzing(false);
+        setCurrentStep(3);
+      };
 
-        toggleCameraBtn.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            uploadPlaceholder.classList.add('hidden');
-            previewContainer.classList.add('hidden');
-            cameraContainer.classList.remove('hidden');
+      useEffect(() => {
+        if (currentStep === 3 && activeTab === 'map' && recommendationResult) {
+          const timer = setTimeout(() => {
+            if (!mapContainerRef.current || typeof L === 'undefined') return;
+
+            // Clean up existing map instance to avoid re-initialization errors
+            if (mapInstanceRef.current) {
+              mapInstanceRef.current.remove();
+              mapInstanceRef.current = null;
+            }
+            if (mapContainerRef.current._leaflet_id) {
+              mapContainerRef.current._leaflet_id = null;
+            }
 
             try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' },
-                    audio: false
-                });
-                webcamVideo.srcObject = mediaStream;
-            } catch (err) {
-                alert('카메라에 접근할 수 없습니다: ' + err.message);
-                resetUploadState();
-            }
-        });
+              const map = L.map(mapContainerRef.current).setView([37.5500, 127.1000], 11);
+              mapInstanceRef.current = map;
 
-        closeCameraBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            stopCamera();
-            resetUploadState();
-        });
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap'
+              }).addTo(map);
 
-        captureBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (!webcamVideo.srcObject) return;
+              L.circleMarker([37.6115, 127.1582], {
+                radius: 9,
+                fillColor: '#2563eb',
+                color: '#ffffff',
+                weight: 2,
+                fillOpacity: 0.9
+              }).addTo(map).bindPopup(`<b>내 위치 (${residentialRegion})</b>`);
 
-            captureCanvas.width = webcamVideo.videoWidth || 640;
-            captureCanvas.height = webcamVideo.videoHeight || 480;
-            const ctx = captureCanvas.getContext('2d');
-            ctx.drawImage(webcamVideo, 0, 0, captureCanvas.width, captureCanvas.height);
-
-            const dataUrl = captureCanvas.toDataURL('image/jpeg');
-            currentBase64 = dataUrl.split(',')[1];
-            currentMimeType = 'image/jpeg';
-            imagePreview.src = dataUrl;
-
-            stopCamera();
-            showPreview();
-        });
-
-        function stopCamera() {
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
-            cameraContainer.classList.add('hidden');
-        }
-
-        analyzeBtn.addEventListener('click', async () => {
-            if (!currentBase64) return;
-
-            // UI Progress Animation
-            loadingState.classList.remove('hidden');
-            resultSection.classList.add('hidden');
-            analyzeBtn.disabled = true;
-
-            let progress = 10;
-            const progressInterval = setInterval(() => {
-                progress += 15;
-                if (progress <= 90) {
-                    loadingProgressBar.style.width = progress + '%';
-                    if (progress > 30 && progress <= 60) {
-                        loadingStatusText.innerText = 'AI가 급식 메뉴를 정밀 감지하고 있습니다...';
-                    } else if (progress > 60) {
-                        loadingStatusText.innerText = '칼로리 및 영양소 비율 산출 중...';
-                    }
-                }
-            }, 600);
-
-            try {
-                // Call Vercel Serverless API
-                const response = await fetch('/api/generate', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        imageBase64: currentBase64,
-                        mimeType: currentMimeType
-                    })
-                });
-
-                clearInterval(progressInterval);
-                loadingProgressBar.style.width = '100%';
-
-                const resData = await response.json();
-
-                if (!response.ok || !resData.success) {
-                    throw new Error(resData.error || '식단 분석 요청 실패');
-                }
-
-                renderResults(resData.data);
-                saveToHistory(resData.data);
-
-            } catch (err) {
-                alert('오류 발생: ' + err.message);
-            } finally {
-                loadingState.classList.add('hidden');
-                analyzeBtn.disabled = false;
-            }
-        });
-
-        function renderResults(data) {
-            resultSection.classList.remove('hidden');
-
-            // Overall Score
-            document.getElementById('resHealthScore').innerText = data.healthScore ? data.healthScore.toFixed(1) : '0.0';
-            document.getElementById('resScoreReason').innerText = data.scoreReason || '';
-
-            // Total Nutrition
-            const total = data.totalNutrition || {};
-            document.getElementById('resTotalCalories').innerText = total.totalCalories || 0;
-            document.getElementById('resTotalCarbs').innerText = total.totalCarbs || 0;
-            document.getElementById('resTotalProtein').innerText = total.totalProtein || 0;
-            document.getElementById('resTotalFat').innerText = total.totalFat || 0;
-
-            // Items Table
-            const tbody = document.getElementById('resItemsTableBody');
-            tbody.innerHTML = '';
-            (data.items || []).forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 transition';
-                tr.innerHTML = `
-                    <td class="py-2.5 px-3 font-semibold text-slate-800">${item.name}</td>
-                    <td class="py-2.5 px-3 text-right text-slate-500">${item.estimatedWeight}</td>
-                    <td class="py-2.5 px-3 text-right font-bold text-emerald-600">${item.calories} kcal</td>
-                    <td class="py-2.5 px-3 text-right text-slate-600">${item.carbs}</td>
-                    <td class="py-2.5 px-3 text-right text-slate-600">${item.protein}</td>
-                    <td class="py-2.5 px-3 text-right text-slate-600">${item.fat}</td>
+              recommendationResult.recommendedAcademies.forEach(acad => {
+                const marker = L.marker([acad.lat, acad.lng]).addTo(map);
+                const popupContent = `
+                  <div class="p-1">
+                    <h4 class="font-bold text-sm text-slate-900">${acad.academyName}</h4>
+                    <p class="text-xs text-blue-600 font-semibold">${acad.subjectGroup} 전문</p>
+                    <p class="text-xs text-slate-600 mt-1">소요시간: ${acad.commuteInfo.minutes}분 (${acad.commuteInfo.distanceKm}km)</p>
+                    <p class="text-xs text-amber-600 font-medium">★ ${acad.rating} (리뷰 ${acad.reviewCount}개)</p>
+                  </div>
                 `;
-                tbody.appendChild(tr);
-            });
-
-            // Good Points
-            const goodList = document.getElementById('resGoodPoints');
-            goodList.innerHTML = (data.goodPoints || []).map(p => `<li class="flex items-start gap-1.5"><i class="fa-solid fa-check text-emerald-500 mt-0.5"></i> <span>${p}</span></li>`).join('');
-
-            // Improvement Points
-            const impList = document.getElementById('resImprovementPoints');
-            impList.innerHTML = (data.improvementPoints || []).map(p => `<li class="flex items-start gap-1.5"><i class="fa-solid fa-angle-right text-amber-500 mt-0.5"></i> <span>${p}</span></li>`).join('');
-
-            // Recommendations
-            const recList = document.getElementById('resRecommendations');
-            recList.innerHTML = (data.recommendations || []).map(r => `<li class="bg-white/80 p-2 rounded-lg border border-blue-100 flex items-center gap-2"><i class="fa-solid fa-plus text-blue-500"></i> ${r}</li>`).join('');
-
-            // Summary Advice
-            document.getElementById('resSummaryAdvice').innerText = data.summaryAdvice || '';
-
-            // Smooth scroll to result
-            resultSection.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        reAnalyzeBtn.addEventListener('click', () => {
-            resetUploadState();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-
-        function saveToHistory(data) {
-            const history = JSON.parse(localStorage.getItem('mealHistory') || '[]');
-            const newRecord = {
-                id: Date.now(),
-                date: new Date().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                score: data.healthScore,
-                calories: data.totalNutrition?.totalCalories,
-                summary: data.items?.map(i => i.name).join(', ')
-            };
-            history.unshift(newRecord);
-            localStorage.setItem('mealHistory', JSON.stringify(history.slice(0, 20)));
-        }
-
-        historyBtn.addEventListener('click', () => {
-            renderHistoryModal();
-            historyModal.classList.remove('hidden');
-        });
-
-        closeHistoryBtn.addEventListener('click', () => {
-            historyModal.classList.add('hidden');
-        });
-
-        function renderHistoryModal() {
-            const history = JSON.parse(localStorage.getItem('mealHistory') || '[]');
-            if (history.length === 0) {
-                historyList.innerHTML = `<p class="text-xs text-center text-slate-400 py-8">아직 기록된 식단이 없습니다.</p>`;
-                return;
+                marker.bindPopup(popupContent);
+              });
+            } catch (err) {
+              console.error('Leaflet Map Render Error:', err);
             }
-            historyList.innerHTML = history.map(h => `
-                <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-                    <div>
-                        <div class="font-bold text-slate-800">${h.summary || '식단 기록'}</div>
-                        <div class="text-slate-400 mt-0.5">${h.date}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="font-bold text-emerald-600">${h.calories} kcal</div>
-                        <div class="text-slate-500 font-medium">★ ${h.score}/5.0</div>
-                    </div>
-                </div>
-            `).join('');
+          }, 200);
+
+          return () => clearTimeout(timer);
         }
-    </script>
+      }, [currentStep, activeTab, recommendationResult, residentialRegion]);
 
-    <!-- Firebase SDK Modules & Board Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+      const handleStartConsultation = (acad = null) => {
+        const initialMsg = acad
+          ? `안녕하세요! [${acad.academyName}] 수강 및 ${selectedSchool ? selectedSchool.name : '고교'} 내신/수능 연계 학습에 대해 무엇이든 물어보세요.`
+          : `안녕하세요! 입시 컨설팅 AI입니다. ${selectedSchool ? selectedSchool.name : '고교'} ${studentGrade} 맞춤형 학습 전략이나 추천 학원에 대해 궁금한 점을 질문해 주세요!`;
+        
+        setConsultMessages([{ role: 'assistant', text: initialMsg }]);
+        setShowConsultModal(true);
+      };
 
-        // 사용자 제공 Firebase Web Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyAmTxVDX-lEJ3FuJJlJkwTOusDcIIa4i20",
-            authDomain: "white-c628e.firebaseapp.com",
-            projectId: "white-c628e",
-            storageBucket: "white-c628e.firebasestorage.app",
-            messagingSenderId: "677736225104",
-            appId: "1:677736225104:web:15e2d4e56be67a79073455"
+      const handleSendConsultMessage = async () => {
+        if (!consultInput.trim() || isConsultLoading) return;
+        const userMsg = consultInput.trim();
+        setConsultInput('');
+        
+        const newHistory = [...consultMessages, { role: 'user', text: userMsg }];
+        setConsultMessages(newHistory);
+        setIsConsultLoading(true);
+
+        const contextInfo = `
+학생 학교: ${selectedSchool ? selectedSchool.name : schoolQuery} (${studentGrade})
+목표: ${targetUniversity} ${targetMajor}
+진단 성적: ${subjectStatuses.map(s => `${s.subject}:${s.status}`).join(', ')}
+        `;
+
+        const prompt = `대화 내역:\n${newHistory.map(m => `${m.role}: ${m.text}`).join('\n')}\n\n유저 최신 질문: ${userMsg}`;
+        const sysInstruction = `당신은 대한민국 대표 입시 진학 컨설턴트 AI입니다. 맥락 정보:\n${contextInfo}\n친절하고 전문적이며 구체적인 실행 방안을 제안해 주세요.`;
+
+        const reply = await callGeminiAPI(prompt, sysInstruction, geminiApiKey);
+        
+        if (reply) {
+          setConsultMessages(prev => [...prev, { role: 'assistant', text: reply }]);
+        } else {
+          setConsultMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              text: `질문하신 [${userMsg}]에 대한 컨설팅 답변입니다.\n\n1. 내신 및 수능 우선순위 설정: 목표 대학(${targetUniversity}) 기준, 약점 과목의 집중 학습 스케줄을 잡는 것이 시급합니다.\n2. 통학 동선 활용: 8호선 다산역 이용 시 대치동 학원가까지 약 50분 내 도착 가능하므로, 주말 몰입반 및 평일 지역 특화 클리닉 병행을 추천합니다.`
+            }
+          ]);
+        }
+        setIsConsultLoading(false);
+      };
+
+      const handleOpenReviewModal = (acad) => {
+        setReviewAcademyTarget(acad);
+        setNewReviewAuthor('');
+        setNewReviewSchoolTag(selectedSchool ? selectedSchool.name : '고등학교');
+        setNewReviewRating(5);
+        setNewReviewText('');
+        setReviewSubmitSuccess(false);
+        setShowReviewModal(true);
+      };
+
+      const handleSubmitReview = (e) => {
+        e.preventDefault();
+        if (!newReviewText.trim() || !reviewAcademyTarget) return;
+
+        const newEntry = {
+          id: `rev-${Date.now()}`,
+          author: `${newReviewAuthor || '수강생'} (${newReviewSchoolTag})`,
+          rating: Number(newReviewRating),
+          date: new Date().toISOString().split('T')[0],
+          sourceTag: 'EduFit 직접 작성 수강평',
+          text: newReviewText.trim()
         };
 
-        // Firebase 초기화
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // 표준 Firestore 경로 및 상태
-        const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
-        const feedbackCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'feedbacks');
-
-        const feedbackForm = document.getElementById('feedbackForm');
-        const feedbackAuthorInput = document.getElementById('feedbackAuthor');
-        const feedbackContentInput = document.getElementById('feedbackContent');
-        const submitFeedbackBtn = document.getElementById('submitFeedbackBtn');
-        const feedbackList = document.getElementById('feedbackList');
-        const feedbackCount = document.getElementById('feedbackCount');
-
-        let isAuthReady = false;
-
-        // 유연한 익명 인증 및 Firestore 초기화
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    try {
-                        await signInAnonymously(auth);
-                    } catch (authErr) {
-                        console.warn("Firebase 익명 로그인 미활성화 또는 오류 (미인증 상태로 Firestore 연결 시도):", authErr);
-                    }
-                }
-            } catch (error) {
-                console.warn("Firebase 로그인 연결 오류:", error);
-            } finally {
-                // 인증 성공 여부와 관계없이 Firestore 연결 시도
-                isAuthReady = true;
-                subscribeFeedbacks();
+        if (recommendationResult) {
+          const updatedAcademies = recommendationResult.recommendedAcademies.map(acad => {
+            if (acad.id === reviewAcademyTarget.id) {
+              return {
+                ...acad,
+                reviewCount: acad.reviewCount + 1,
+                reviews: [newEntry, ...acad.reviews]
+              };
             }
+            return acad;
+          });
+
+          setRecommendationResult({
+            ...recommendationResult,
+            recommendedAcademies: updatedAcademies
+          });
         }
 
-        // Firestore 실시간 목록 수신 (최신순 정렬)
-        function subscribeFeedbacks() {
-            if (!isAuthReady) return;
+        setReviewSubmitSuccess(true);
+        setTimeout(() => {
+          setShowReviewModal(false);
+          setReviewSubmitSuccess(false);
+        }, 1200);
+      };
 
-            onSnapshot(feedbackCollectionRef, (snapshot) => {
-                const posts = [];
-                snapshot.forEach((doc) => {
-                    posts.push({ id: doc.id, ...doc.data() });
-                });
+      return (
+        <div className={darkMode ? 'dark' : ''}>
+          <div className="min-h-screen bg-slate-50 dark:bg-gray-950 text-slate-800 dark:text-gray-100 flex flex-col">
+            
+            <header className="sticky top-0 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-slate-200 dark:border-gray-800 px-4 lg:px-8 py-3.5 flex items-center justify-between shadow-sm">
+              <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setCurrentStep(1)}>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-black text-xl shadow-md">
+                  E
+                </div>
+                <div>
+                  <h1 className="font-extrabold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                    EduFit <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">AI 입시진단</span>
+                  </h1>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 hidden sm:block">고등학생 맞춤 학원 연계 및 데이터 기반 학습 진단</p>
+                </div>
+              </div>
 
-                // 최신순 정렬 (createdAt 내림차순)
-                posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+              <div className="flex items-center space-x-2 sm:space-x-3">
+                <button
+                  onClick={() => setShowSettingsModal(true)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-gray-700 text-xs sm:text-sm font-medium hover:bg-slate-100 dark:hover:bg-gray-800 transition flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4 text-slate-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                  <span>API 설정</span>
+                </button>
 
-                renderFeedbackList(posts);
-            }, (error) => {
-                console.error("Firestore 수신 오류:", error);
-                feedbackList.innerHTML = `
-                    <div class="text-center py-6 px-4 bg-red-50 rounded-xl border border-red-200 space-y-1">
-                        <p class="text-xs text-red-600 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> 게시판 접속 실패 (Firebase 권한 설정 필요)</p>
-                        <p class="text-[11px] text-red-500 leading-normal">
-                            Firebase 콘솔에서 <b>Authentication > 익명 로그인</b> 활성화 또는 <b>Firestore Database 보안 규칙</b>(테스트 모드)을 확인해 주세요.
-                        </p>
-                    </div>
-                `;
-            });
-        }
+                <button
+                  onClick={() => setDarkMode(!darkMode)}
+                  className="p-2 rounded-lg border border-slate-200 dark:border-gray-700 text-slate-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                  title="다크모드 토글"
+                >
+                  {darkMode ? '☀️' : '🌙'}
+                </button>
+              </div>
+            </header>
 
-        // 화면에 게시글 구현
-        function renderFeedbackList(posts) {
-            feedbackCount.innerText = `총 ${posts.length}개`;
+            {}
+            <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+              
+              <div className="mb-8">
+                <div className="flex items-center justify-between text-xs sm:text-sm font-semibold text-slate-500 mb-2">
+                  <span className={currentStep >= 1 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}>1. 학교 및 거주지 설정</span>
+                  <span className={currentStep >= 2 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}>2. 과목 성취도 및 진학 목표</span>
+                  <span className={currentStep >= 3 ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}>3. AI 학습진단 및 맞춤 학원</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-gray-800 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-blue-600 h-full transition-all duration-300" 
+                    style={{ width: `${(currentStep / 3) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
 
-            if (posts.length === 0) {
-                feedbackList.innerHTML = `
-                    <div class="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <p class="text-xs text-slate-400">아직 등록된 의견이 없습니다. 첫 번째 의견을 남겨보세요!</p>
-                    </div>
-                `;
-                return;
-            }
+              {/* STEP 1: SCHOOL & COMMUTE SELECTION */}
+              {currentStep === 1 && (
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-slate-200 dark:border-gray-800 p-6 sm:p-8 transition-all">
+                  <div className="mb-6">
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">학생 기본 정보 및 학교 선택</h2>
+                    <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">전국 고등학교 NEIS 데이터베이스 검색 및 맞춤 통학 조건 설정</p>
+                  </div>
 
-            feedbackList.innerHTML = posts.map(post => {
-                const dateStr = post.createdAt 
-                    ? new Date(post.createdAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    : '방금 전';
+                  <div className="space-y-6">
+                    <div className="relative">
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">
+                        재학 중인 고등학교 검색 <span className="text-blue-600">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={schoolQuery}
+                          onChange={(e) => {
+                            setSchoolQuery(e.target.value);
+                            setShowSchoolDropdown(true);
+                          }}
+                          onFocus={() => setShowSchoolDropdown(true)}
+                          placeholder="학교명을 입력하세요 (예: 남양주다산고, 동화고, 휘문고, 가운고 등)"
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+                        />
+                        {selectedSchool && (
+                          <span className="absolute right-3 top-3 text-xs bg-emerald-100 text-emerald-800 font-medium px-2.5 py-1 rounded-md">
+                            선택됨: {selectedSchool.name}
+                          </span>
+                        )}
+                      </div>
 
-                return `
-                    <div class="p-3.5 bg-slate-50 hover:bg-emerald-50/30 rounded-xl border border-slate-200/80 transition space-y-1">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
-                                <i class="fa-solid fa-circle-user text-emerald-500"></i>
-                                ${escapeHtml(post.author || '익명')}
-                            </span>
-                            <span class="text-[10px] text-slate-400">${dateStr}</span>
+                      {showSchoolDropdown && (
+                        <div className="absolute z-20 mt-1 w-full bg-white dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl shadow-xl max-h-60 overflow-y-auto custom-scrollbar">
+                          {filteredSchools.length > 0 ? (
+                            filteredSchools.map((sch) => (
+                              <div
+                                key={sch.code}
+                                onClick={() => handleSelectSchool(sch)}
+                                className="px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700/60 cursor-pointer border-b last:border-0 border-slate-100 dark:border-gray-700/50 flex items-center justify-between"
+                              >
+                                <div>
+                                  <div className="font-semibold text-slate-900 dark:text-white text-sm">{sch.name}</div>
+                                  <div className="text-xs text-slate-500 dark:text-gray-400">{sch.office} · {sch.district}</div>
+                                </div>
+                                <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300">
+                                  {sch.type}
+                                </span>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center">
+                              <p className="text-sm text-slate-500">일치하는 학교 검색 결과가 없습니다.</p>
+                              <button
+                                type="button"
+                                onClick={handleDirectSchoolInput}
+                                className="mt-2 text-xs text-blue-600 dark:text-blue-400 font-semibold underline"
+                              >
+                                '{schoolQuery}' 이름으로 직접 등록하기
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <p class="text-xs text-slate-600 pl-5 leading-relaxed">${escapeHtml(post.content || '')}</p>
+                      )}
                     </div>
-                `;
-            }).join('');
-        }
 
-        // 의견 저장 처리
-        feedbackForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const author = feedbackAuthorInput.value.trim();
-            const content = feedbackContentInput.value.trim();
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">학년 선택</label>
+                        <select
+                          value={studentGrade}
+                          onChange={(e) => setStudentGrade(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        >
+                          <option value="고1">고등학교 1학년</option>
+                          <option value="고2">고등학교 2학년</option>
+                          <option value="고3">고등학교 3학년</option>
+                          <option value="N수">N수생 / 재수생</option>
+                        </select>
+                      </div>
 
-            if (!author || !content) return;
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2">고등학교 유형</label>
+                        <select
+                          value={highSchoolType}
+                          onChange={(e) => setHighSchoolType(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        >
+                          <option value="일반고">일반고등학교</option>
+                          <option value="자율형사립고">자율형사립고 (자사고)</option>
+                          <option value="자율형공립고">자율형공립고 (자공고)</option>
+                          <option value="특목고">과학고 / 외고 / 국제고</option>
+                        </select>
+                      </div>
+                    </div>
 
-            submitFeedbackBtn.disabled = true;
-            submitFeedbackBtn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> <span>등록 중...</span>`;
+                    <div className="pt-4 border-t border-slate-200 dark:border-gray-800">
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">거주지 및 학원 통학 조건</h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">거주 지역 (동 단위)</label>
+                          <input
+                            type="text"
+                            value={residentialRegion}
+                            onChange={(e) => setResidentialRegion(e.target.value)}
+                            placeholder="예: 경기도 남양주시 다산1동, 서울 강남구 대치동"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                        </div>
 
-            try {
-                await addDoc(feedbackCollectionRef, {
-                    author: author,
-                    content: content,
-                    createdAt: Date.now()
-                });
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">주요 이동 수단</label>
+                            <div className="grid grid-cols-3 gap-2">
+                              {[
+                                { key: 'transit', label: '대중교통' },
+                                { key: 'car', label: '차량/라이딩' },
+                                { key: 'walk', label: '도보' }
+                              ].map((m) => (
+                                <button
+                                  key={m.key}
+                                  type="button"
+                                  onClick={() => setTransportMode(m.key)}
+                                  className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition ${
+                                    transportMode === m.key
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                      : 'bg-slate-50 dark:bg-gray-800 text-slate-700 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {m.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-                // 폼 초기화
-                feedbackContentInput.value = '';
-            } catch (err) {
-                console.error("의견 등록 실패:", err);
-                alert("의견 등록에 실패했습니다. Firebase 콘솔에서 Firestore 규칙(allow read, write: if true;) 또는 익명 로그인이 활성화되어 있는지 확인해 주세요.");
-            } finally {
-                submitFeedbackBtn.disabled = false;
-                submitFeedbackBtn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span>의견 등록하기</span>`;
-            }
-        });
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                              최대 편도 통학 허용시간: <span className="text-blue-600 font-bold">{maxCommuteMinutes}분</span>
+                            </label>
+                            <input
+                              type="range"
+                              min="15"
+                              max="90"
+                              step="5"
+                              value={maxCommuteMinutes}
+                              onChange={(e) => setMaxCommuteMinutes(Number(e.target.value))}
+                              className="w-full h-2 bg-slate-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-600 mt-3"
+                            />
+                            <div className="flex justify-between text-xs text-slate-400 mt-1">
+                              <span>15분 (집 근처)</span>
+                              <span>60분 (대치동 가능)</span>
+                              <span>90분</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-        // XSS 방지용 HTML 이스케이프 함수
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.innerText = text;
-            return div.innerHTML;
-        }
+                    <div className="pt-4 flex justify-end">
+                      <button
+                        onClick={() => setCurrentStep(2)}
+                        className="w-full sm:w-auto px-8 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 transition flex items-center justify-center gap-2"
+                      >
+                        <span>과목 성취도 진단으로 이동</span>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-        // 인증 및 게시판 초기화 실행
-        initAuth();
-    </script>
+              {}
+              {currentStep === 2 && (
+                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-slate-200 dark:border-gray-800 p-6 sm:p-8 transition-all">
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">교과목별 성취 수준 및 목표 설정</h2>
+                      <p className="text-slate-500 dark:text-gray-400 text-sm mt-1">
+                        {GRADE_CURRICULUM[studentGrade]?.label || '고교 교육과정'} 기반 맞춤 항목 평가
+                      </p>
+                    </div>
+                    <span className="text-xs bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold px-3 py-1 rounded-full border border-blue-200 dark:border-blue-800/50 self-start sm:self-auto">
+                      {studentGrade} 과정
+                    </span>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700/60">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">목표 대학 그룹</label>
+                        <select
+                          value={targetUniversity}
+                          onChange={(e) => setTargetUniversity(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        >
+                          <option value="A그룹 (S.K.Y / 의약학계열)">A그룹 (S.K.Y / 의약학 / 약대)</option>
+                          <option value="B그룹 (서성한 / 중경외시)">B그룹 (서성한 / 중경외시 / 이화여대)</option>
+                          <option value="C그룹 (건동홍 / 국숭세단)">C그룹 (건동홍 / 국숭세단 / 주요 수도권)</option>
+                          <option value="D그룹 (인서울 상위 / 지방 거점 국립대)">D그룹 (인서울 상위 / 거점 국립대)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">희망 전공 / 학과</label>
+                        <input
+                          type="text"
+                          value={targetMajor}
+                          onChange={(e) => setTargetMajor(e.target.value)}
+                          placeholder="예: 컴퓨터공학과, 경영학과, 의예과 등"
+                          className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3">과목별 자가 진단 평가</h3>
+                      <div className="space-y-3 max-h-[420px] overflow-y-auto pr-2 custom-scrollbar">
+                        {subjectStatuses.map((subItem, idx) => (
+                          <div key={idx} className="p-4 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-800/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div className="md:w-1/4">
+                              <span className="font-bold text-slate-900 dark:text-white text-sm block">{subItem.subject}</span>
+                            </div>
+
+                            <div className="md:w-1/3 flex items-center space-x-1">
+                              {['매우 우수', '우수', '보통', '부족', '매우 부족'].map((lvl) => (
+                                <button
+                                  key={lvl}
+                                  type="button"
+                                  onClick={() => handleSubjectStatusChange(idx, 'status', lvl)}
+                                  className={`flex-1 py-1.5 px-1 rounded-lg text-xs font-medium border transition ${
+                                    subItem.status === lvl
+                                      ? lvl.includes('우수')
+                                        ? 'bg-emerald-600 text-white border-emerald-600'
+                                        : lvl === '보통'
+                                        ? 'bg-blue-600 text-white border-blue-600'
+                                        : 'bg-rose-600 text-white border-rose-600'
+                                      : 'bg-slate-50 dark:bg-gray-700 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-600 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {lvl}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="md:w-1/3">
+                              <input
+                                type="text"
+                                value={subItem.detail}
+                                onChange={(e) => handleSubjectStatusChange(idx, 'detail', e.target.value)}
+                                placeholder="취약 유형 (예: 서술형 어법, 킬러 문항)"
+                                className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900 text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 flex items-center justify-between gap-3">
+                      <button
+                        onClick={() => setCurrentStep(1)}
+                        className="px-6 py-3 border border-slate-300 dark:border-gray-700 text-slate-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                      >
+                        이전
+                      </button>
+
+                      <button
+                        onClick={executeDiagnosis}
+                        disabled={isAnalyzing}
+                        className="px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-blue-500/25 transition flex items-center gap-2"
+                      >
+                        {isAnalyzing ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span>AI가 입시 데이터 분석 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>AI 맞춤 진단 및 학원 추천 받기</span>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {}
+              {currentStep === 3 && recommendationResult && (
+                <div className="space-y-6">
+                  
+                  <div className="bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-950 text-white rounded-2xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+                    <div className="relative z-10">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <span className="bg-blue-500/30 text-blue-200 border border-blue-400/30 text-xs font-semibold px-3 py-1 rounded-full">
+                          AI 학습 심층 진단 보고서
+                        </span>
+                        <span className="text-xs text-slate-300">
+                          진단일: {recommendationResult.timestamp}
+                        </span>
+                      </div>
+
+                      <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">
+                        {recommendationResult.schoolName} ({studentGrade}) 맞춤 전략
+                      </h2>
+                      <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
+                        {recommendationResult.aiAnalysis.overallAnalysis}
+                      </p>
+
+                      <div className="mt-6 pt-6 border-t border-white/10 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs sm:text-sm">
+                        <div className="bg-white/5 p-3.5 rounded-xl border border-white/10">
+                          <span className="text-emerald-400 font-bold block mb-1">✓ 강점 및 기회</span>
+                          <p className="text-slate-200">{recommendationResult.aiAnalysis.keyStrengths?.[0] || '개념 이해도 양호'}</p>
+                        </div>
+                        <div className="bg-white/5 p-3.5 rounded-xl border border-white/10">
+                          <span className="text-rose-400 font-bold block mb-1">! 보완 영역</span>
+                          <p className="text-slate-200">{recommendationResult.aiAnalysis.keyWeaknesses?.[0] || '최상위권 변형 문제 클리닉 필요'}</p>
+                        </div>
+                        <div className="bg-white/5 p-3.5 rounded-xl border border-white/10">
+                          <span className="text-amber-400 font-bold block mb-1">★ 핵심 전략</span>
+                          <p className="text-slate-200">{recommendationResult.aiAnalysis.strategicAdvice || '통학 동선 효율화 및 주말 집중반'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-gray-900 p-2.5 rounded-xl border border-slate-200 dark:border-gray-800">
+                    <div className="flex space-x-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => setActiveTab('list')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                          activeTab === 'list'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        추천 학원 목록 ({recommendationResult.recommendedAcademies.length})
+                      </button>
+
+                      <button
+                        onClick={() => setActiveTab('map')}
+                        className={`flex-1 sm:flex-initial px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition ${
+                          activeTab === 'map'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800'
+                        }`}
+                      >
+                        🗺️ 지도로 통학동선 확인
+                      </button>
+                    </div>
+
+                    <button
+                      onClick={() => handleStartConsultation()}
+                      className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-1.5"
+                    >
+                      <span>💬 1:1 AI 입시 상담 시작</span>
+                    </button>
+                  </div>
+
+                  {activeTab === 'list' && (
+                    <div className="space-y-4">
+                      {recommendationResult.recommendedAcademies.map((acad) => (
+                        <div
+                          key={acad.id}
+                          className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-200 dark:border-gray-800 p-5 sm:p-6 hover:border-blue-300 dark:hover:border-blue-700 transition shadow-xs"
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 text-xs font-extrabold px-2.5 py-0.5 rounded-md">
+                                  적합도 {acad.recommendationScore}%
+                                </span>
+                                <span className="bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-300 text-xs font-medium px-2.5 py-0.5 rounded-md">
+                                  {acad.subjectGroup} 전문
+                                </span>
+                                <span className="text-xs text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                                  ★ {acad.rating} <span className="text-slate-400 font-normal">({acad.reviewCount}개 후기)</span>
+                                </span>
+                              </div>
+
+                              <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white">
+                                {acad.academyName}
+                              </h3>
+
+                              <p className="text-xs sm:text-sm text-slate-600 dark:text-gray-400">
+                                📍 {acad.address} ({acad.region})
+                              </p>
+
+                              <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-gray-800/60 border border-blue-100 dark:border-gray-700/50 text-xs text-slate-700 dark:text-gray-300 space-y-1">
+                                <div className="font-bold text-blue-900 dark:text-blue-300 flex items-center justify-between">
+                                  <span>🚌 예상 소요시간: 약 {acad.commuteInfo.minutes}분 (거리 {acad.commuteInfo.distanceKm}km)</span>
+                                  {acad.commuteInfo.minutes <= maxCommuteMinutes ? (
+                                    <span className="text-emerald-600 dark:text-emerald-400">✓ 허용범위 내</span>
+                                  ) : (
+                                    <span className="text-rose-500">통학시간 다소 길음</span>
+                                  )}
+                                </div>
+                                <p className="text-slate-600 dark:text-gray-400">{acad.commuteInfo.routeDesc}</p>
+                              </div>
+
+                              <div className="text-xs text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                <span>{acad.dataConsistency}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row lg:flex-col gap-2 shrink-0 lg:w-48">
+                              <button
+                                onClick={() => setSelectedDetailAcademy(acad)}
+                                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-gray-800 dark:hover:bg-gray-700 text-white font-bold rounded-xl text-xs transition"
+                              >
+                                교재 및 리뷰 상세보기
+                              </button>
+                              
+                              <button
+                                onClick={() => handleStartConsultation(acad)}
+                                className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition"
+                              >
+                                1:1 커리큘럼 AI 문의
+                              </button>
+
+                              <button
+                                onClick={() => handleOpenReviewModal(acad)}
+                                className="w-full py-2.5 px-4 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-semibold rounded-xl text-xs hover:bg-emerald-100 transition"
+                              >
+                                수강 후기 작성하기
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeTab === 'map' && (
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-slate-200 dark:border-gray-800 p-4 shadow-xs">
+                      <div className="mb-3 flex items-center justify-between">
+                        <h3 className="font-bold text-slate-900 dark:text-white text-sm">
+                          거주지({residentialRegion}) 중심 대치/다산 학원가 위치 지도
+                        </h3>
+                        <span className="text-xs text-slate-500">Leaflet OpenStreetMap 연동</span>
+                      </div>
+                      <div ref={mapContainerRef} className="w-full h-[480px] rounded-xl border border-slate-200 dark:border-gray-700"></div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 flex justify-start">
+                    <button
+                      onClick={() => setCurrentStep(2)}
+                      className="px-6 py-2.5 border border-slate-300 dark:border-gray-700 text-slate-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-slate-100 dark:hover:bg-gray-800 transition text-sm"
+                    >
+                      ← 진단 조건 다시 수정하기
+                    </button>
+                  </div>
+
+                </div>
+              )}
+
+            </main>
+
+            {}
+            {selectedDetailAcademy && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 dark:border-gray-800 custom-scrollbar">
+                  <div className="flex items-start justify-between border-b border-slate-200 dark:border-gray-800 pb-4 mb-4">
+                    <div>
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{selectedDetailAcademy.subjectGroup} 학원</span>
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedDetailAcademy.academyName}</h3>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">{selectedDetailAcademy.address}</p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedDetailAcademy(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-gray-200 p-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-1.5">
+                      <span>📚 대표 교재 및 변형 문제 미리보기</span>
+                    </h4>
+
+                    {selectedDetailAcademy.materials.map((mat, i) => (
+                      <div key={i} className="p-4 rounded-xl bg-slate-50 dark:bg-gray-800/80 border border-slate-200 dark:border-gray-700 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-blue-900 dark:text-blue-300 text-sm">{mat.title}</span>
+                          <span className="text-xs bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded font-medium">
+                            {mat.level}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-gray-300">{mat.description}</p>
+                        
+                        {mat.samplePreview && (
+                          <div className="mt-3 p-3 bg-white dark:bg-gray-900 rounded-lg border border-slate-200 dark:border-gray-700 text-xs space-y-1.5">
+                            <div className="font-semibold text-slate-700 dark:text-gray-200">[{mat.samplePreview.chapter}]</div>
+                            <div className="text-slate-900 dark:text-gray-100 font-mono bg-slate-100 dark:bg-gray-800 p-2 rounded">
+                              {mat.samplePreview.sampleQuestion}
+                            </div>
+                            <div className="text-amber-700 dark:text-amber-400 font-medium">{mat.samplePreview.teacherNote}</div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <div className="pt-4 border-t border-slate-200 dark:border-gray-800">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                          검증된 수강생 후기 ({selectedDetailAcademy.reviews.length})
+                        </h4>
+                        <button
+                          onClick={() => {
+                            const target = selectedDetailAcademy;
+                            setSelectedDetailAcademy(null);
+                            handleOpenReviewModal(target);
+                          }}
+                          className="text-xs text-blue-600 dark:text-blue-400 font-bold underline"
+                        >
+                          + 후기 쓰기
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {selectedDetailAcademy.reviews.map((rev) => (
+                          <div key={rev.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs space-y-1">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-slate-800 dark:text-gray-200">{rev.author}</span>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-amber-500 font-bold">★ {rev.rating}</span>
+                                <span className="text-slate-400 text-[10px]">{rev.date}</span>
+                              </div>
+                            </div>
+                            <span className="inline-block text-[10px] text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-1.5 py-0.5 rounded">
+                              {rev.sourceTag}
+                            </span>
+                            <p className="text-slate-700 dark:text-gray-300 mt-1 leading-relaxed">{rev.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      onClick={() => setSelectedDetailAcademy(null)}
+                      className="px-5 py-2 bg-slate-200 dark:bg-gray-800 text-slate-800 dark:text-gray-200 text-xs font-bold rounded-xl hover:bg-slate-300 transition"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {}
+            {showReviewModal && reviewAcademyTarget && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
+                    [{reviewAcademyTarget.academyName}] 수강 후기 작성
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-4">실제 수강 경험을 바탕으로 후기를 남겨주시면 다른 학생들에게 도움이 됩니다.</p>
+
+                  {reviewSubmitSuccess ? (
+                    <div className="p-6 text-center text-emerald-600 dark:text-emerald-400 font-bold">
+                      ✓ 수강 후기가 성공적으로 등록되었습니다!
+                    </div>
+                  ) : (
+                    <form onSubmit={handleSubmitReview} className="space-y-4 text-xs">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold mb-1">작성자 닉네임</label>
+                          <input
+                            type="text"
+                            value={newReviewAuthor}
+                            onChange={(e) => setNewReviewAuthor(e.target.value)}
+                            placeholder="예: 김O진 (고2)"
+                            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold mb-1">평점 선택</label>
+                          <select
+                            value={newReviewRating}
+                            onChange={(e) => setNewReviewRating(e.target.value)}
+                            className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white font-bold"
+                          >
+                            <option value="5">★ 5.0 (매우 만족)</option>
+                            <option value="4">★ 4.0 (만족)</option>
+                            <option value="3">★ 3.0 (보통)</option>
+                            <option value="2">★ 2.0 (아쉬움)</option>
+                            <option value="1">★ 1.0 (비추천)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">소속 학교</label>
+                        <input
+                          type="text"
+                          value={newReviewSchoolTag}
+                          onChange={(e) => setNewReviewSchoolTag(e.target.value)}
+                          placeholder="학교명 (예: 동화고등학교)"
+                          className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold mb-1">상세 후기 내용</label>
+                        <textarea
+                          rows="4"
+                          value={newReviewText}
+                          onChange={(e) => setNewReviewText(e.target.value)}
+                          placeholder="커리큘럼, 강사 질의응답, 내신/수능 연계율 등에 대해 적어주세요."
+                          className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                        ></textarea>
+                      </div>
+
+                      <div className="flex justify-end space-x-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewModal(false)}
+                          className="px-4 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-100"
+                        >
+                          취소
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700"
+                        >
+                          후기 등록
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {}
+            {showConsultModal && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-xl w-full h-[600px] flex flex-col shadow-2xl border border-slate-200 dark:border-gray-800">
+                  
+                  <div className="p-4 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-blue-600 text-white rounded-t-2xl">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></div>
+                      <h3 className="font-bold text-sm">EduFit 1:1 AI 입시 심층 상담실</h3>
+                    </div>
+                    <button onClick={() => setShowConsultModal(false)} className="text-white hover:opacity-80">
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="flex-1 p-4 overflow-y-auto space-y-3 custom-scrollbar bg-slate-50 dark:bg-gray-950">
+                    {consultMessages.map((msg, index) => (
+                      <div
+                        key={index}
+                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] p-3 rounded-2xl text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
+                            msg.role === 'user'
+                              ? 'bg-blue-600 text-white rounded-br-none shadow-xs'
+                              : 'bg-white dark:bg-gray-800 text-slate-800 dark:text-gray-100 border border-slate-200 dark:border-gray-700 rounded-bl-none shadow-xs'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      </div>
+                    ))}
+                    {isConsultLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white dark:bg-gray-800 p-3 rounded-2xl text-xs text-slate-500 border border-slate-200 dark:border-gray-700 flex items-center space-x-2">
+                          <span className="animate-spin">⏳</span>
+                          <span>AI가 맞춤 답변을 작성하고 있습니다...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-3 border-t border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-b-2xl flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={consultInput}
+                      onChange={(e) => setConsultInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendConsultMessage()}
+                      placeholder="학원 선택, 내신 공부법, 동선에 대해 물어보세요..."
+                      className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-gray-700 bg-slate-50 dark:bg-gray-800 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={handleSendConsultMessage}
+                      disabled={isConsultLoading}
+                      className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition"
+                    >
+                      전송
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
+
+            {}
+            {showSettingsModal && (
+              <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-gray-800">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">API 키 설정</h3>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mb-4">
+                    NEIS 학교 데이터 연동 및 Gemini AI 맞춤 분석을 위한 Key 설정입니다. (백엔드에 GEMINI_API_KEY가 설정되어 있다면 비워두셔도 작동합니다)
+                  </p>
+
+                  <div className="space-y-4 text-xs">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-gray-300">
+                        NEIS 나이스 Open API Key (선택)
+                      </label>
+                      <input
+                        type="password"
+                        value={neisApiKey}
+                        onChange={(e) => setNeisApiKey(e.target.value)}
+                        placeholder="NEIS Open API 키 입력"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-gray-300">
+                        Gemini API Key (선택)
+                      </label>
+                      <input
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="클라이언트 개별 사용 시 Gemini API Key"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    {settingsSavedNotice && (
+                      <p className="text-emerald-600 font-bold text-center">✓ 설정이 저장되었습니다.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex justify-end space-x-2">
+                    <button
+                      onClick={() => setShowSettingsModal(false)}
+                      className="px-4 py-2 border border-slate-300 text-slate-600 dark:text-gray-300 text-xs font-semibold rounded-lg hover:bg-slate-100"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleSaveSettings}
+                      className="px-5 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700"
+                    >
+                      저장하기
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <footer className="mt-auto border-t border-slate-200 dark:border-gray-800 py-6 px-4 text-center text-xs text-slate-500 dark:text-gray-500">
+              <p>© 2026 EduFit AI. 고등학생 학원 맞춤 연계 및 데이터 기반 입시 솔루션.</p>
+            </footer>
+
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
 </body>
 </html>
